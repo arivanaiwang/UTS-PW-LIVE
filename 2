@@ -1,0 +1,149 @@
+Berikut adalah kode lengkap untuk app.js yang telah diperbarui untuk menampilkan data statistik di dashboard:
+
+
+---
+
+Kode Lengkap app.js
+
+const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const bodyParser = require('body-parser');
+const connection = require('./config');
+
+const app = express();
+app.use(express.static('public'));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true
+}));
+
+// Middleware untuk mengecek sesi
+function authMiddleware(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+// Halaman Landing Page
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html');
+});
+
+// Halaman Login
+app.get('/login', (req, res) => {
+  res.sendFile(__dirname + '/views/login.html');
+});
+
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  connection.query('SELECT * FROM users WHERE username = ?', [username], async (err, results) => {
+    if (err) throw err;
+    if (results.length > 0) {
+      const match = await bcrypt.compare(password, results[0].password);
+      if (match) {
+        req.session.user = username;
+        res.redirect('/dashboard');
+      } else {
+        res.send('Password salah');
+      }
+    } else {
+      res.send('User tidak ditemukan');
+    }
+  });
+});
+
+// Halaman Registrasi
+app.get('/register', (req, res) => {
+  res.sendFile(__dirname + '/views/register.html');
+});
+
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  connection.query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err, results) => {
+    if (err) throw err;
+    res.send('Registrasi berhasil! Silakan login.');
+  });
+});
+
+// Halaman Dashboard
+app.get('/dashboard', authMiddleware, (req, res) => {
+  res.sendFile(__dirname + '/views/dashboard.html');
+});
+
+// Endpoint untuk data statistik
+app.get('/stats', authMiddleware, (req, res) => {
+  connection.query(
+    'SELECT COUNT(*) AS jumlah_nelayan, SUM(hasil_tangkapan) AS total_tangkapan, SUM(stok_ikan) AS total_stok FROM nelayan',
+    (err, results) => {
+      if (err) throw err;
+      res.json(results[0]);
+    }
+  );
+});
+
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
+
+// CRUD untuk data nelayan
+app.post('/create', authMiddleware, (req, res) => {
+  const { nama_nelayan, hasil_tangkapan, stok_ikan } = req.body;
+  connection.query('INSERT INTO nelayan (nama, hasil_tangkapan, stok_ikan) VALUES (?, ?, ?)', [nama_nelayan, hasil_tangkapan, stok_ikan], (err, results) => {
+    if (err) throw err;
+    res.send('Data berhasil ditambahkan');
+  });
+});
+
+app.get('/read', authMiddleware, (req, res) => {
+  connection.query('SELECT * FROM nelayan', (err, results) => {
+    if (err) throw err;
+    res.json(results);
+  });
+});
+
+app.put('/update/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const { hasil_tangkapan, stok_ikan } = req.body;
+  connection.query('UPDATE nelayan SET hasil_tangkapan = ?, stok_ikan = ? WHERE id = ?', [hasil_tangkapan, stok_ikan, id], (err, results) => {
+    if (err) throw err;
+    res.send('Data berhasil diupdate');
+  });
+});
+
+app.delete('/delete/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  connection.query('DELETE FROM nelayan WHERE id = ?', [id], (err, results) => {
+    if (err) throw err;
+    res.send('Data berhasil dihapus');
+  });
+});
+
+app.listen(3000, () => console.log('Server berjalan di http://localhost:3000'));
+
+
+---
+
+Penjelasan:
+
+1. Rute /stats: Endpoint ini mengembalikan data statistik dalam format JSON.
+
+
+2. Halaman /dashboard: Menyediakan tampilan dashboard, di mana statistik akan ditampilkan.
+
+
+3. Session Management: Menggunakan express-session untuk mengelola sesi pengguna.
+
+
+4. CRUD Operasi: Menyediakan rute untuk membuat, membaca, memperbarui, dan menghapus data nelayan.
+
+
+
+Dengan kode ini, dashboard akan menampilkan data statistik yang dapat diambil oleh front-end dan diperbarui di halaman dashboard.
